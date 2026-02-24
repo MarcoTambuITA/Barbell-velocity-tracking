@@ -360,6 +360,8 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
       
         static float    conc_vel_sum      = 0.0f;   // for Mean Concentric Velocity
         static float    conc_peak_vel     = 0.0f;   // for Peak Concentric Velocity
+        static float    conc_acc_sum      = 0.0f;   // for Average Z Acceleration (m/s^2)
+        static float    conc_peak_acc     = 0.0f;   // for Peak Z Acceleration (m/s^2)
         static float    conc_displacement = 0.0f;   // for Range of Motion (meters)
         static uint32_t conc_samples      = 0;      // sample count during concentric
         static uint32_t rep_count         = 0;      // total valid reps detected
@@ -381,6 +383,8 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                     rep_state = REP_CONCENTRIC;
                     conc_vel_sum = 0.0f;
                     conc_peak_vel = 0.0f;
+                    conc_acc_sum = 0.0f;
+                    conc_peak_acc = 0.0f;
                     conc_displacement = 0.0f;
                     conc_samples = 0;
                     rep_tut = 0.0f;    // Start TUT clock for concentric-only rep
@@ -395,6 +399,8 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                     rep_state = REP_CONCENTRIC;
                     conc_vel_sum = 0.0f;
                     conc_peak_vel = 0.0f;
+                    conc_acc_sum = 0.0f;
+                    conc_peak_acc = 0.0f;
                     conc_displacement = 0.0f;
                     conc_samples = 0;
                 }
@@ -404,9 +410,11 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                 // Accumulate metrics every sample
                 rep_tut += dt;   // Accumulate TUT during concentric phase
                 conc_vel_sum += vel_z;
+                conc_acc_sum += acc_earth_z;
                 conc_samples++;
                 conc_displacement += vel_z * dt;
                 if (vel_z > conc_peak_vel) conc_peak_vel = vel_z;
+                if (acc_earth_z > conc_peak_acc) conc_peak_acc = acc_earth_z;
 
                 // Check for rep completion: velocity dropping back toward zero (lockout)
                 if (vel_z < LOCKOUT_THRESH) {
@@ -415,9 +423,10 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                         rep_count++;
                         set_active = true;  // At least 1 valid rep → set is active
                         float MCV = conc_vel_sum / (float)conc_samples;
+                        float avgZAccel = conc_acc_sum / (float)conc_samples;
 
-                        // Send to BLE
-                        RepData stats = {MCV, conc_peak_vel, rep_tut, conc_displacement};
+                        // Send to BLE (isSetComplete = false, because this is just a rep finishing)
+                        RepData stats = {MCV, conc_peak_vel, rep_tut, conc_displacement, avgZAccel, conc_peak_acc, rep_count, false};
                         updateRepStats(stats);
 
                         // Consolidated Serial Report (faster than 15 separate calls)
@@ -456,6 +465,12 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                 Serial.println(" s");
                 Serial.println("══════════════════════════════════════════");
                 Serial.println();
+                
+                // Send "Set Complete" flag via BLE
+                // Zero out the velocity/accel metrics; the important parts are rep_count and isSetComplete=true
+                RepData finalStats = {0.0f, 0.0f, set_tut, 0.0f, 0.0f, 0.0f, rep_count, true};
+                updateRepStats(finalStats);
+
                 // Reset all counters for next set
                 rep_count = 0;
                 set_tut = 0.0f;

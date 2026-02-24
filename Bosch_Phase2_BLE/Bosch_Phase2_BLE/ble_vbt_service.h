@@ -17,12 +17,16 @@
 // ────────────────────────────────────────────────────────────────
 // RepData Struct — packed binary payload for repStatsChar
 // ────────────────────────────────────────────────────────────────
-// 4 floats × 4 bytes = 16 bytes total (fits within 20-byte MTU)
+// 6 floats × 4 bytes + 1 uint32_t × 4 bytes + 1 boolean × 1 byte = 29 bytes total
 struct __attribute__((packed)) RepData {
     float meanConcentricVelocity;   // m/s
     float peakConcentricVelocity;   // m/s
     float timeUnderTension;         // seconds
     float rangeOfMotion;            // meters
+    float averageZAcceleration;     // m/s^2
+    float peakZAcceleration;        // m/s^2
+    uint32_t repNumber;             // Count
+    bool isSetComplete;             // True if set is finished
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -36,8 +40,8 @@ BLEService vbtService(VBT_SERVICE_UUID);
 //   velocityChar: Float (4 bytes), Read + Notify
 BLEFloatCharacteristic velocityChar(VELOCITY_CHAR_UUID, BLERead | BLENotify);
 
-//   repStatsChar: 20-byte array, Read + Notify
-BLECharacteristic repStatsChar(REP_STATS_CHAR_UUID, BLERead | BLENotify, 20);
+//   repStatsChar: 33-byte array, Read + Notify
+BLECharacteristic repStatsChar(REP_STATS_CHAR_UUID, BLERead | BLENotify, sizeof(RepData));
 
 // ────────────────────────────────────────────────────────────────
 // BLE Initialization — call this from setup()
@@ -69,8 +73,8 @@ bool initBLE() {
     // ── Set Initial Values ──
     velocityChar.writeValue(0.0f);
 
-    uint8_t emptyStats[20] = {0};
-    repStatsChar.writeValue(emptyStats, 20);
+    uint8_t emptyStats[sizeof(RepData)] = {0};
+    repStatsChar.writeValue(emptyStats, sizeof(RepData));
 
     // ── Start Advertising ──
     BLE.advertise();
