@@ -2,6 +2,8 @@
 .DS_Store
 .vscode/
 
+GitHub_repositories/
+
 # Key files
 *.der
 *.pem

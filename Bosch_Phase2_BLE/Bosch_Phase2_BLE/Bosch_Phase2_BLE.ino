@@ -360,10 +360,11 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
       
         static float    conc_vel_sum      = 0.0f;   // for Mean Concentric Velocity
         static float    conc_peak_vel     = 0.0f;   // for Peak Concentric Velocity
-        static float    conc_acc_sum      = 0.0f;   // for Average Z Acceleration (m/s^2)
+        static float    conc_prop_acc_sum = 0.0f;   // for Mean Propulsive Z Acceleration (m/s^2)
         static float    conc_peak_acc     = 0.0f;   // for Peak Z Acceleration (m/s^2)
         static float    conc_displacement = 0.0f;   // for Range of Motion (meters)
         static uint32_t conc_samples      = 0;      // sample count during concentric
+        static uint32_t prop_samples      = 0;      // sample count during propulsive phase
         static uint32_t rep_count         = 0;      // total valid reps detected
         static float    rep_tut           = 0.0f;   // Time Under Tension for current rep (s)
         static float    set_tut           = 0.0f;   // Cumulative TUT for the entire set (s)
@@ -383,10 +384,11 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                     rep_state = REP_CONCENTRIC;
                     conc_vel_sum = 0.0f;
                     conc_peak_vel = 0.0f;
-                    conc_acc_sum = 0.0f;
+                    conc_prop_acc_sum = 0.0f;
                     conc_peak_acc = 0.0f;
                     conc_displacement = 0.0f;
                     conc_samples = 0;
+                    prop_samples = 0;
                     rep_tut = 0.0f;    // Start TUT clock for concentric-only rep
                     idle_timing = false; // Cancel any set-timeout timer
                 }
@@ -399,10 +401,11 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                     rep_state = REP_CONCENTRIC;
                     conc_vel_sum = 0.0f;
                     conc_peak_vel = 0.0f;
-                    conc_acc_sum = 0.0f;
+                    conc_prop_acc_sum = 0.0f;
                     conc_peak_acc = 0.0f;
                     conc_displacement = 0.0f;
                     conc_samples = 0;
+                    prop_samples = 0;
                 }
                 break;
 
@@ -410,7 +413,10 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                 // Accumulate metrics every sample
                 rep_tut += dt;   // Accumulate TUT during concentric phase
                 conc_vel_sum += vel_z;
-                conc_acc_sum += acc_earth_z;
+                if (acc_earth_z > 0.0f) {
+                    conc_prop_acc_sum += acc_earth_z;
+                    prop_samples++;
+                }
                 conc_samples++;
                 conc_displacement += vel_z * dt;
                 if (vel_z > conc_peak_vel) conc_peak_vel = vel_z;
@@ -423,7 +429,7 @@ float acc_earth_z = linear_acc_x * 2.0f*(q1*q3 - q0*q2)
                         rep_count++;
                         set_active = true;  // At least 1 valid rep → set is active
                         float MCV = conc_vel_sum / (float)conc_samples;
-                        float avgZAccel = conc_acc_sum / (float)conc_samples;
+                        float avgZAccel = prop_samples > 0 ? (conc_prop_acc_sum / (float)prop_samples) : 0.0f;
 
                         // Send to BLE (isSetComplete = false, because this is just a rep finishing)
                         RepData stats = {MCV, conc_peak_vel, rep_tut, conc_displacement, avgZAccel, conc_peak_acc, rep_count, false};
